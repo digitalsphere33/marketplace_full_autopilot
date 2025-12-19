@@ -1,0 +1,6 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.0
+Pillow==10.4.0
+requests==2.32.3
+# Install actual NSFW package during final setup
+# falconsai-nsfw-image-detection

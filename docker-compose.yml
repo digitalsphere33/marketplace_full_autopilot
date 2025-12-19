@@ -1,0 +1,49 @@
+version: "3.9"
+services:
+  api:
+    image: node:20
+    working_dir: /app/api
+    volumes:
+      - ./:/app
+    command: bash -lc "cd api && npm install && npm run dev"
+    environment:
+      - PGHOST=db
+      - PGPORT=5432
+      - PGUSER=postgres
+      - PGPASSWORD=postgres
+      - PGDATABASE=postgres
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=dev_secret
+      - PAYFAST_BASE_URL=https://sandbox.payfast.co.za
+      - PAYFAST_MERCHANT_ID=10000100
+      - PAYFAST_MERCHANT_KEY=46f0cd694581a
+      - PAYFAST_PASSPHRASE=passphrase
+      - PLATFORM_COMMISSION_PERCENT=10
+      - ALLOW_HTTP_DEV=true
+      - AI_PROVIDER=anthropic
+      - AI_MODEL=claude-sonnet-4.5
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+      - redis
+      - ml
+
+  ml:
+    image: python:3.11
+    working_dir: /app/ml
+    volumes:
+      - ./:/app
+    command: bash -lc "cd ml && pip install -r requirements.txt && uvicorn app:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
