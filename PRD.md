@@ -1,9 +1,11 @@
 # PRD.md – SA Marketplace (Autopilot, Revenue-First)
 
 ## Objective
+
 Launch a legally compliant, revenue-generating multi-vendor marketplace in South Africa within 21–30 days.
 
 Primary goals:
+
 - Accept payments immediately
 - Automatically take commission
 - Reduce fraud via seller screening
@@ -15,6 +17,7 @@ Primary goals:
 - Admin (platform owner)
 
 ## Core MVP Features (Non-Negotiable)
+
 - Seller onboarding + KYC status
 - Product/service listings
 - Checkout with split payments
@@ -24,6 +27,7 @@ Primary goals:
 - Admin dashboard
 
 ## Explicitly Out of Scope (V1)
+
 - Native mobile apps
 - Advanced analytics
 - Loyalty programs

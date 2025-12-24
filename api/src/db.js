@@ -55,7 +55,10 @@ CREATE TABLE IF NOT EXISTS ledger (
   id UUID PRIMARY KEY,
   order_id UUID,
   platform_fee NUMERIC,
-  seller_amount NUMERIC
+  seller_amount NUMERIC,
+  created_at TIMESTAMP DEFAULT now(),
+  seller_payout_scheduled_at TIMESTAMP,
+  paid_to_seller BOOLEAN DEFAULT false
 );
 
 CREATE TABLE IF NOT EXISTS flagged_items (
@@ -64,6 +67,27 @@ CREATE TABLE IF NOT EXISTS flagged_items (
   listing_title TEXT,
   reason TEXT,
   created_at TIMESTAMP DEFAULT now()
+);
+
+-- Products (new) for richer catalog
+CREATE TABLE IF NOT EXISTS products (
+  id UUID PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  price NUMERIC NOT NULL,
+  currency TEXT DEFAULT 'ZAR',
+  stock INT DEFAULT 0,
+  sku TEXT,
+  category TEXT DEFAULT 'Electronics',
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS product_images (
+  id UUID PRIMARY KEY,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  position INT DEFAULT 0
 );
 `;
   await pool.query(ddl);

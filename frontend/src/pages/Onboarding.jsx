@@ -12,6 +12,7 @@ export default function Onboarding() {
   const [verifyCode, setVerifyCode] = useState('');
   const [token, setToken] = useState('');
   const [msg, setMsg] = useState('');
+  const [devCode, setDevCode] = useState(''); // Store the dev code to display
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -63,10 +64,12 @@ export default function Onboarding() {
       const sellerRes = await fetch('/sellers', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${res.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
       });
 
       if (!sellerRes.ok) {
         const errData = await sellerRes.json().catch(() => ({}));
+        console.error('Seller creation response:', { status: sellerRes.status, data: errData });
         throw new Error(errData.error || errData.details || `Seller creation failed: ${sellerRes.status}`);
       }
       
@@ -80,6 +83,9 @@ export default function Onboarding() {
         throw new Error(errData.error || `Verification request failed: ${codeRes.status}`);
       }
 
+      const codeData = await codeRes.json();
+      console.log('[VERIFY] Code received:', codeData.code);
+      setDevCode(codeData.code);
       setMsg(`Verification code sent to ${email}`);
       setStep(2);
     } catch (err) {
@@ -140,16 +146,37 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="max-w-md mx-auto bg-white rounded-lg p-6 border border-gray-200">
-      {/* Step indicators */}
-      <div className="flex gap-2 mb-6">
-        {[1, 2, 3].map(s => (
-          <div
-            key={s}
-            className={`h-2 flex-1 rounded-full ${s <= step ? 'bg-primary' : 'bg-gray-200'}`}
-          />
-        ))}
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <h1 className="text-3xl font-bold text-gray-900">Become a Seller</h1>
+          <p className="text-gray-600 mt-2">Start selling on MzansiMart and reach thousands of customers</p>
+        </div>
       </div>
+
+      {/* Progress bar */}
+      <div className="sticky top-0 bg-white border-b border-gray-200 z-40">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          <div className="flex gap-2">
+            {[1, 2, 3, 4].map(s => (
+              <div
+                key={s}
+                className={`flex-1 h-2 rounded-full transition-all ${s <= step ? 'bg-primary' : 'bg-gray-200'}`}
+              />
+            ))}
+          </div>
+          <div className="flex justify-between mt-2 text-xs text-gray-600">
+            <span className={step >= 1 ? 'text-primary font-semibold' : ''}>Account</span>
+            <span className={step >= 2 ? 'text-primary font-semibold' : ''}>Verify</span>
+            <span className={step >= 3 ? 'text-primary font-semibold' : ''}>Profile</span>
+            <span className={step >= 4 ? 'text-primary font-semibold' : ''}>Complete</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-2xl mx-auto px-4 py-12">
 
       {/* Step 1: Account Creation */}
       {step === 1 && (
@@ -215,9 +242,13 @@ export default function Onboarding() {
             <p className="text-sm text-gray-600 mt-1">We sent a code to {email}</p>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
-            Check your email for a verification code (or spam folder)
-          </div>
+          {devCode && (
+            <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 text-center">
+              <p className="text-xs text-gray-600 mb-2">Your verification code (dev mode):</p>
+              <p className="text-3xl font-bold text-green-700 font-mono tracking-widest">{devCode}</p>
+              <p className="text-xs text-gray-500 mt-2">Copy this code below</p>
+            </div>
+          )}
 
           <div>
             <label className="text-sm font-semibold text-gray-700">Verification Code</label>
@@ -326,11 +357,12 @@ export default function Onboarding() {
             {msg}
           </div>
 
-          <button className="w-full bg-primary text-white py-2 rounded-lg font-semibold hover:bg-blue-700">
+          <button className="w-full bg-primary text-white py-3 rounded-lg font-semibold hover:bg-blue-700">
             Go to Seller Dashboard
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }

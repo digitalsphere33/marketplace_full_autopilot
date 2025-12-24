@@ -24,6 +24,17 @@ export default async function adminRoutes(app) {
   });
 
   app.get('/orders', async () => (await pool.query('SELECT * FROM orders ORDER BY created_at DESC')).rows);
+  app.get('/ledger', async () => (await pool.query('SELECT * FROM ledger ORDER BY created_at DESC')).rows);
+  app.post('/ledger/:id/mark-paid', async (req, reply) => {
+    try {
+      const { id } = req.params;
+      await pool.query('UPDATE ledger SET paid_to_seller = true WHERE id=$1', [id]);
+      return { ok: true };
+    } catch (err) {
+      app.log.error({ err }, 'Mark ledger paid error');
+      return reply.code(500).send({ error: 'Failed to mark ledger entry' });
+    }
+  });
   app.get('/sellers', async () => (await pool.query('SELECT * FROM sellers')).rows);
   app.get('/listings', async () => {
     const { rows } = await pool.query(`

@@ -26,7 +26,41 @@ export default async function listingRoutes(app) {
   });
 
   app.get('/', async () => {
-    const { rows } = await pool.query("SELECT l.*, s.id as seller FROM listings l JOIN sellers s ON s.id=l.seller_id WHERE l.status='active'");
-    return rows;
+    const { rows: legacyListings } = await pool.query("SELECT l.*, s.id as seller FROM listings l JOIN sellers s ON s.id=l.seller_id WHERE l.status='active'");
+
+    // Pull products table (admin-created) and map to listing-like shape for frontend
+    const { rows: products } = await pool.query(`
+      SELECT p.id,
+             p.title,
+             p.price,
+             p.category,
+             p.status,
+             p.stock,
+             p.created_at,
+             (
+               SELECT url FROM product_images pi
+               WHERE pi.product_id = p.id
+               ORDER BY pi.position ASC
+               LIMIT 1
+             ) AS image_url
+      FROM products p
+      WHERE p.status = 'active'
+      ORDER BY p.created_at DESC
+    `);
+
+    // Normalize products to match the frontend expectations
+    const normalizedProducts = products.map(p => ({
+      id: p.id,
+      seller: null,
+      title: p.title,
+      price: Number(p.price || 0),
+      status: p.status,
+      category: p.category || 'Electronics',
+      image_url: p.image_url || null,
+      stock: p.stock,
+      created_at: p.created_at
+    }));
+
+    return [...normalizedProducts, ...legacyListings];
   });
 }

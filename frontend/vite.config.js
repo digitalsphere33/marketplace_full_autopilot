@@ -15,6 +15,8 @@ export default defineConfig({
       '/admin': 'http://127.0.0.1:3000',
       '/disputes': 'http://127.0.0.1:3000',
       '/recommendations': 'http://127.0.0.1:3000',
+      '/products': 'http://127.0.0.1:3000',
+      '/orders': 'http://127.0.0.1:3000',
     }
   },
 });

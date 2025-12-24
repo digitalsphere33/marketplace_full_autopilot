@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { supabase } from '../supabaseClient.js';
 
 export default function Admin() {
   const [token, setToken] = useState(localStorage.getItem('jwt') || '');
@@ -15,6 +16,10 @@ export default function Admin() {
   const [newTitle, setNewTitle] = useState('');
   const [newPrice, setNewPrice] = useState('');
   const [newCategory, setNewCategory] = useState('Electronics');
+  const [newDescription, setNewDescription] = useState('');
+  const [newStock, setNewStock] = useState(0);
+  const [images, setImages] = useState([]); // File objects
+  const [uploading, setUploading] = useState(false);
   
   const categories = ['Electronics', 'Home & Living', 'Fashion', 'Health & Beauty', 'Baby & Kids', 'Sports & Outdoors', 'Office & School'];
 
@@ -79,29 +84,49 @@ export default function Admin() {
     setError('');
     setMsg('');
     try {
-      const res = await fetch('/admin/listings', {
+      // 1) Upload images to Supabase Storage (bucket: product-images)
+      setUploading(true);
+      const urls = [];
+      for (let i = 0; i < Math.min(images.length, 5); i++) {
+        const file = images[i];
+        const path = `products/${Date.now()}_${i}_${file.name}`;
+        const { error: upErr } = await supabase.storage.from('product-images').upload(path, file, { upsert: false });
+        if (upErr) throw new Error(`Upload failed: ${upErr.message}`);
+        const { data: pub } = supabase.storage.from('product-images').getPublicUrl(path);
+        urls.push(pub.publicUrl);
+      }
+      setUploading(false);
+
+      // 2) Create product via API
+      const res = await fetch('/products', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           title: newTitle,
+          description: newDescription,
           price: parseFloat(newPrice),
-          category: newCategory
+          stock: Number(newStock || 0),
+          category: newCategory,
+          images: urls
         })
       });
-      
+
       if (!res.ok) throw new Error('Failed to add product');
-      
-      const newProduct = await res.json();
+
       setMsg('Product added successfully!');
       setNewTitle('');
       setNewPrice('');
       setNewCategory('Electronics');
-      loadData(); // Refresh listings
+      setNewDescription('');
+      setNewStock(0);
+      setImages([]);
+      loadData();
     } catch (err) {
       setError(err.message);
+      setUploading(false);
     }
   }
 
@@ -242,6 +267,17 @@ export default function Admin() {
             </div>
             
             <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+              <textarea
+                className="w-full border border-gray-300 rounded-lg p-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                rows={3}
+                placeholder="Short description of the product"
+                value={newDescription}
+                onChange={e => setNewDescription(e.target.value)}
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Price (ZAR)</label>
               <input
                 type="number"
@@ -254,6 +290,17 @@ export default function Admin() {
             </div>
             
             <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Stock</label>
+              <input
+                type="number"
+                className="w-full border border-gray-300 rounded-lg p-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                placeholder="e.g., 10"
+                value={newStock}
+                onChange={e => setNewStock(e.target.value)}
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
               <select
                 className="w-full border border-gray-300 rounded-lg p-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
@@ -265,12 +312,27 @@ export default function Admin() {
                 ))}
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Product Images (up to 5)</label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={e => setImages(Array.from(e.target.files || []).slice(0,5))}
+                className="w-full border border-gray-300 rounded-lg p-2"
+              />
+              {images?.length > 0 && (
+                <div className="text-xs text-gray-600 mt-1">{images.length} image(s) selected</div>
+              )}
+            </div>
             
             <button
               onClick={addProduct}
-              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 active:scale-95 transition-all h-11"
+              disabled={uploading}
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 active:scale-95 transition-all h-11 disabled:opacity-50"
             >
-              Add Product
+              {uploading ? 'Uploading...' : 'Add Product'}
             </button>
           </div>
         </div>

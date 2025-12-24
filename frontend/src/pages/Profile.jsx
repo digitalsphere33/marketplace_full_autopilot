@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import Onboarding from './Onboarding.jsx';
 
 export default function Profile() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [token, setToken] = useState(localStorage.getItem('jwt') || '');
-  const [active, setActive] = useState('orders'); // 'orders' | 'returns'
+  const [active, setActive] = useState('orders'); // 'orders' | 'returns' | 'seller'
   const [orders, setOrders] = useState([]);
   const [disputes, setDisputes] = useState([]);
   const [newReturnOrderId, setNewReturnOrderId] = useState('');
@@ -96,6 +97,13 @@ export default function Profile() {
   }
 
   useEffect(() => {
+    // Handle deep-linking into specific tab (e.g., 'seller')
+    const desired = typeof window !== 'undefined' ? sessionStorage.getItem('profileActiveTab') : null;
+    if (desired && (desired === 'orders' || desired === 'returns' || desired === 'seller')) {
+      setActive(desired);
+      sessionStorage.removeItem('profileActiveTab');
+    }
+
     if (token) {
       // Auto-load current tab on token presence
       if (active === 'orders') loadOrders();
@@ -130,6 +138,7 @@ export default function Profile() {
       <div className="flex gap-2">
         <button className={`px-3 py-1 rounded-full text-sm border ${active==='orders'?'bg-primary text-white border-primary':'bg-white'}`} onClick={()=>setActive('orders')}>Orders</button>
         <button className={`px-3 py-1 rounded-full text-sm border ${active==='returns'?'bg-primary text-white border-primary':'bg-white'}`} onClick={()=>setActive('returns')}>Returns & Disputes</button>
+        <button className={`px-3 py-1 rounded-full text-sm border ${active==='seller'?'bg-primary text-white border-primary':'bg-white'}`} onClick={()=>setActive('seller')}>Seller</button>
       </div>
 
       {active === 'orders' && (
@@ -180,6 +189,18 @@ export default function Profile() {
               </ul>
             )}
           </div>
+        </div>
+      )}
+
+      {active === 'seller' && (
+        <div className="space-y-4">
+          {!token ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+              <p className="text-sm text-gray-700 mb-4">Log in first to become a seller on MzansiMart!</p>
+            </div>
+          ) : (
+            <Onboarding />
+          )}
         </div>
       )}
     </div>

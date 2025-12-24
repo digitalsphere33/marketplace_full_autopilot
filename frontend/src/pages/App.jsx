@@ -6,6 +6,7 @@ import Checkout from './Checkout.jsx';
 import Admin from './Admin.jsx';
 import Orders from './Orders.jsx';
 import Profile from './Profile.jsx';
+import { supabase } from '../supabaseClient.js';
 
 // Tabs are now computed dynamically based on user role - see getVisibleTabs() below
 const categories = [
@@ -44,6 +45,7 @@ function PillButton({ children, active, onClick }) {
 function ProductCard({ item, onAddToCart }) {
   const [quantity, setQuantity] = useState(1);
   const [isHovered, setIsHovered] = useState(false);
+  const imageUrl = item.image_url || item.imageUrl;
 
   const handleAddToCart = () => {
     onAddToCart({ ...item, quantity });
@@ -62,12 +64,21 @@ function ProductCard({ item, onAddToCart }) {
         isHovered ? 'shadow-lg scale-[1.02]' : 'shadow-sm'
       }`}
     >
-      <div className="relative overflow-hidden">
-        <div className={`h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-gray-400 text-sm transition-transform duration-300 ${
-          isHovered ? 'scale-105' : ''
-        }`}>
-          📦 Image
-        </div>
+      <div className="relative overflow-hidden h-48 bg-gradient-to-br from-gray-100 to-gray-200">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={item.title || 'Product image'}
+            className={`w-full h-full object-cover transition-transform duration-300 ${isHovered ? 'scale-105' : ''}`}
+            loading="lazy"
+          />
+        ) : (
+          <div className={`h-full flex items-center justify-center text-gray-400 text-sm transition-transform duration-300 ${
+            isHovered ? 'scale-105' : ''
+          }`}>
+            📦 Image
+          </div>
+        )}
         {item.discount && (
           <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold shadow-md">
             {item.discount}% OFF
@@ -147,7 +158,30 @@ export default function App() {
   const [cart, setCart] = useState([]);
   const [userRole, setUserRole] = useState(localStorage.getItem('userRole') || 'buyer');
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('jwt'));
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [guestMenuOpen, setGuestMenuOpen] = useState(false);
   const productsRef = React.useRef(null);
+  const accountRef = React.useRef(null);
+  const guestRef = React.useRef(null);
+
+  const scrollToProducts = () => {
+    setTab('listings');
+    productsRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleDocumentMouseDown(e) {
+      if (accountOpen && accountRef.current && !accountRef.current.contains(e.target)) {
+        setAccountOpen(false);
+      }
+      if (guestMenuOpen && guestRef.current && !guestRef.current.contains(e.target)) {
+        setGuestMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleDocumentMouseDown);
+    return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
+  }, [accountOpen, guestMenuOpen]);
 
   // Compute visible tabs based on user role
   const getVisibleTabs = () => {
@@ -162,8 +196,8 @@ export default function App() {
         baseTabs.push('admin');
       }
     } else {
-      // Show login tab for non-logged-in users
-      baseTabs.push('login');
+      // Do NOT add a separate 'login' tab. We use the top-right button
+      // to open the dedicated full-screen login view to avoid duplicates.
     }
     
     return baseTabs;
@@ -172,6 +206,32 @@ export default function App() {
   const visibleTabs = getVisibleTabs();
 
   useEffect(() => {
+    // If no local JWT but Supabase session exists, exchange it for app JWT
+    (async () => {
+      try {
+        if (!localStorage.getItem('jwt')) {
+          const { data } = await supabase.auth.getSession();
+          const accessToken = data?.session?.access_token;
+          if (accessToken) {
+            const res = await fetch('/auth/supabase/exchange', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ access_token: accessToken })
+            });
+            if (res.ok) {
+              const j = await res.json();
+              if (j.token) {
+                localStorage.setItem('jwt', j.token);
+                if (j.role) localStorage.setItem('userRole', j.role);
+                setIsLoggedIn(true);
+                setUserRole(j.role || 'buyer');
+              }
+            }
+          }
+        }
+      } catch {}
+    })();
+
     fetch('/listings')
       .then(r => r.json())
       .then(data => setListings(Array.isArray(data) ? data : []))
@@ -242,23 +302,6 @@ export default function App() {
         </div>
       );
     }
-    if (tab === 'login') {
-      return (
-        <Login onLoginSuccess={() => {
-          setIsLoggedIn(true);
-          const token = localStorage.getItem('jwt');
-          if (token) {
-            try {
-              const payload = JSON.parse(atob(token.split('.')[1]));
-              setUserRole(payload.role || 'buyer');
-            } catch (e) {
-              console.error('Failed to decode JWT:', e);
-            }
-          }
-          setTab('listings');
-        }} />
-      );
-    }
     if (tab === 'onboarding') return <Onboarding />;
     if (tab === 'checkout') return <Checkout cart={cart} setCart={setCart} />;
     if (tab === 'orders') return <Orders />;
@@ -266,6 +309,25 @@ export default function App() {
     if (tab === 'admin') return <Admin />;
     return null;
   };
+
+  // If on login tab, show ONLY the login component (no marketplace UI)
+  if (tab === 'login') {
+    return (
+      <Login onLoginSuccess={() => {
+        setIsLoggedIn(true);
+        const token = localStorage.getItem('jwt');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            setUserRole(payload.role || 'buyer');
+          } catch (e) {
+            console.error('Failed to decode JWT:', e);
+          }
+        }
+        setTab('listings');
+      }} />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-700">
@@ -298,37 +360,57 @@ export default function App() {
                 </button>
                 </div>
               </div>
-              <div className="hidden sm:flex items-center gap-4 text-sm">
+              <div className="hidden sm:flex items-center gap-4 text-sm relative">
                 <span className="text-gray-700 cursor-pointer hover:text-blue-600 transition-colors">Help</span>
                 <span className="text-gray-700 cursor-pointer hover:text-blue-600 transition-colors">Track</span>
                 {isLoggedIn ? (
-                  <>
+                  <div className="relative" ref={accountRef}>
                     <button
-                      onClick={() => setTab('profile')}
-                      className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
+                      onClick={() => setAccountOpen(!accountOpen)}
+                      className="text-gray-700 hover:text-blue-600 transition-colors font-medium flex items-center gap-1"
                     >
-                      👤 Account
+                      👤 Account <span className="text-gray-400">▾</span>
                     </button>
-                    <button
-                      onClick={() => {
-                        localStorage.removeItem('jwt');
-                        localStorage.removeItem('userRole');
-                        setIsLoggedIn(false);
-                        setUserRole('buyer');
-                        setTab('listings');
-                      }}
-                      className="text-gray-700 hover:text-red-600 transition-colors"
-                    >
-                      Logout
-                    </button>
-                  </>
+                    {accountOpen && (
+                      <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-md shadow-lg py-2 z-50">
+                        <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { setTab('orders'); setAccountOpen(false); }}>📦 Orders</button>
+                        <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { setTab('profile'); setAccountOpen(false); }}>👤 Profile</button>
+                        <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { sessionStorage.setItem('profileActiveTab','seller'); setTab('profile'); setAccountOpen(false); }}>🏪 Seller Center</button>
+                        {userRole === 'admin' && (
+                          <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { setTab('admin'); setAccountOpen(false); }}>🛠️ Admin</button>
+                        )}
+                        <div className="border-t my-1"></div>
+                        <button
+                          className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                          onClick={() => {
+                            localStorage.removeItem('jwt');
+                            localStorage.removeItem('userRole');
+                            setIsLoggedIn(false);
+                            setUserRole('buyer');
+                            setAccountOpen(false);
+                            setTab('listings');
+                          }}
+                        >
+                          🚪 Sign out
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 ) : (
-                  <button
-                    onClick={() => setTab('login')}
-                    className="text-blue-600 hover:text-blue-700 font-semibold transition-colors"
-                  >
-                    Login / Sign Up
-                  </button>
+                  <div className="relative" ref={guestRef}>
+                    <button
+                      onClick={() => setGuestMenuOpen(!guestMenuOpen)}
+                      className="text-blue-600 hover:text-blue-700 font-semibold transition-colors flex items-center gap-1"
+                    >
+                      Login / Sign Up <span className="text-gray-400">▾</span>
+                    </button>
+                    {guestMenuOpen && (
+                      <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-md shadow-lg py-2 z-50">
+                        <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { sessionStorage.setItem('loginMode','login'); setTab('login'); setGuestMenuOpen(false); }}>🔐 Sign in</button>
+                        <button className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50" onClick={() => { sessionStorage.setItem('loginMode','register'); setTab('login'); setGuestMenuOpen(false); }}>✨ Create account</button>
+                      </div>
+                    )}
+                  </div>
                 )}
                 <button
                   onClick={() => setTab('checkout')}
@@ -339,24 +421,15 @@ export default function App() {
               </div>
             </div>
             
-            {/* Navigation tabs */}
-            <div className="flex items-center justify-between">
-              <div className="flex gap-2 overflow-x-auto no-scrollbar">
-                {visibleTabs.map(k => (
-                  <PillButton key={k} active={tab === k} onClick={() => setTab(k)}>
-                    {k === 'login' && !isLoggedIn ? 'Login / Sign Up' : k.charAt(0).toUpperCase() + k.slice(1)}
-                  </PillButton>
-                ))}
-              </div>
+            {/* Header tagline (tabs removed for cleaner UX) */}
+            <div className="flex items-center justify-end">
               <div className="text-xs text-gray-500 hidden sm:block">Secure payments • Fast dispatch • Trusted sellers</div>
             </div>
             
             {/* Quick links */}
             <div className="flex gap-3 text-xs overflow-x-auto no-scrollbar pb-1">
-              <span className="whitespace-nowrap bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200">🎁 New Arrivals</span>
-              <span className="whitespace-nowrap bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200">⭐ Top Deals</span>
-              <span onClick={() => setTab('onboarding')} className="whitespace-nowrap bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200">🏪 Become a Seller</span>
-              
+              <span onClick={scrollToProducts} className="whitespace-nowrap bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200">🎁 New Arrivals</span>
+              <span onClick={scrollToProducts} className="whitespace-nowrap bg-gray-100 px-2 py-1 rounded cursor-pointer hover:bg-gray-200">⭐ Top Deals</span>
             </div>
           </div>
         </div>
@@ -390,12 +463,6 @@ export default function App() {
             <div className="text-4xl font-bold leading-tight">Alot for Less, Trusted Sellers</div>
             <div className="text-base opacity-90 max-w-2xl">Discover great deals from verified sellers. Secure checkout, fast delivery, and hassle-free returns.</div>
             <div className="flex gap-3 flex-wrap pt-2">
-              <button
-                onClick={() => setTab('onboarding')}
-                className="bg-white text-blue-600 px-6 py-3 h-11 rounded-lg font-semibold hover:bg-gray-100 active:scale-95 transition-all duration-200"
-              >
-                Become a Seller
-              </button>
               <button onClick={() => productsRef.current?.scrollIntoView({ behavior: 'smooth' })} className="bg-blue-700 text-white border border-white px-6 py-3 h-11 rounded-lg hover:bg-blue-800 font-semibold active:scale-95 transition-all duration-200">Shop Now</button>
             </div>
           </div>
@@ -494,12 +561,6 @@ export default function App() {
             <div>
               <div className="font-bold mb-3">Sell</div>
               <div className="space-y-2 text-xs text-gray-600">
-                <div
-                  onClick={() => setTab('onboarding')}
-                  className="cursor-pointer hover:text-primary"
-                >
-                  Become a Seller
-                </div>
                 <div className="cursor-pointer hover:text-primary">Seller Dashboard</div>
                 <div className="cursor-pointer hover:text-primary">Seller Policies</div>
                 <div className="cursor-pointer hover:text-primary">Account Support</div>
