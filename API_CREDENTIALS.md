@@ -28,14 +28,15 @@ This guide shows where to obtain the credentials the app requires. Copy values i
   - Obtain: `merchant id`, `merchant key`, and optionally `passphrase`.
 - Set envs: `PAYFAST_MERCHANT_ID`, `PAYFAST_MERCHANT_KEY`, `PAYFAST_PASSPHRASE`, `PAYFAST_BASE_URL` (for sandbox `https://sandbox.payfast.co.za`)
 
-5) Supabase (optional) — Object Storage
-- Purpose: Store product images and public assets.
+5) Supabase (recommended for OAuth & Images)
+- Purpose: Handle Google login (OAuth), store product images.
 - Steps:
   - Create account at https://app.supabase.com/
   - Create a new Project -> Settings -> API
-  - Copy `Project URL` and `Service Role Key` (Service role key is used server-side)
-  - Create a Storage bucket named `images` and set public access if needed
-- Set envs: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY` (optional for client), `SUPABASE_BUCKET=images`
+  - Copy `Project URL`, `Service Role Key`, `anon public` key
+  - Enable Google OAuth: Authentication -> Providers -> Google -> Enable, add Client ID/Secret (get from Google Console at https://console.cloud.google.com/)
+  - Create Storage bucket named `images` (public)
+- Set envs: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY` (for client), `SUPABASE_BUCKET=images`
 - Supabase docs: https://supabase.com/docs
 
 6) Sentry (optional) — Error Reporting

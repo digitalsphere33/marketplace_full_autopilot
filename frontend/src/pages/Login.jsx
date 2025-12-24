@@ -278,10 +278,12 @@ export default function Login({ onLoginSuccess }) {
               type="button"
               onClick={async () => {
                 try {
-                  await supabase.auth.signInWithOAuth({
+                  const { data, error } = await supabase.auth.signInWithOAuth({
                     provider: 'google',
-                    options: { redirectTo: window.location.origin }
+                    options: { redirectTo: window.location.origin + '/oauth/callback' }
                   });
+                  if (error) throw error;
+                  // The callback page will handle the session
                 } catch (e) {
                   setError(e.message || 'Google sign-in failed');
                 }

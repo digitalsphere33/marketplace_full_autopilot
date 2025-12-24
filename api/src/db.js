@@ -51,6 +51,14 @@ CREATE TABLE IF NOT EXISTS orders (
   created_at TIMESTAMP DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS order_items (
+  id UUID PRIMARY KEY,
+  order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id),
+  quantity INT DEFAULT 1,
+  price NUMERIC
+);
+
 CREATE TABLE IF NOT EXISTS ledger (
   id UUID PRIMARY KEY,
   order_id UUID,
@@ -88,6 +96,17 @@ CREATE TABLE IF NOT EXISTS product_images (
   product_id UUID REFERENCES products(id) ON DELETE CASCADE,
   url TEXT NOT NULL,
   position INT DEFAULT 0
+);
+
+-- Reviews and ratings
+CREATE TABLE IF NOT EXISTS reviews (
+  id UUID PRIMARY KEY,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  buyer_id UUID REFERENCES users(id),
+  rating INT CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT now(),
+  UNIQUE(product_id, buyer_id) -- One review per buyer per product
 );
 `;
   await pool.query(ddl);

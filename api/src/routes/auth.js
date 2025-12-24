@@ -102,6 +102,40 @@ export default async function authRoutes(app) {
     }
   });
 
+  // Google OAuth login
+  app.post('/google/login', async (req, reply) => {
+    try {
+      const { id_token } = req.body || {};
+      if (!id_token) return reply.code(400).send({ error: 'id_token required' });
+
+      // Verify with Supabase
+      const { data, error } = await supabaseAdmin.auth.signInWithIdToken({
+        provider: 'google',
+        token: id_token,
+      });
+      if (error || !data?.user) return reply.code(401).send({ error: 'Invalid Google token' });
+
+      const user = data.user;
+      const email = user.email;
+      if (!email) return reply.code(400).send({ error: 'Email not available' });
+
+      // Find or create local user
+      let local = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
+      if (!local.rows.length) {
+        const id = uuidv4();
+        const role = 'buyer';
+        await pool.query('INSERT INTO users(id,email,role) VALUES($1,$2,$3)', [id, email, role]);
+        local = await pool.query('SELECT * FROM users WHERE id=$1', [id]);
+      }
+      const u = local.rows[0];
+      const token = app.jwt.sign({ sub: u.id, role: u.role });
+      return reply.send({ token, role: u.role, email });
+    } catch (err) {
+      console.error('Google login error:', err);
+      return reply.code(500).send({ error: 'Google login failed' });
+    }
+  });
+
   // Email/phone verification (dev: returns code, prod: would send)
   app.post('/verify/request', { preValidation: [app.verifyJwt] }, async (req, reply) => {
     try {
