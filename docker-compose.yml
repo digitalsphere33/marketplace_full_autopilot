@@ -11,12 +11,16 @@ services:
       - PGPASSWORD=postgres
       - PGDATABASE=postgres
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=dev_secret
-      - PAYFAST_BASE_URL=https://sandbox.payfast.co.za
-      - PAYFAST_MERCHANT_ID=10000100
-      - PAYFAST_MERCHANT_KEY=46f0cd694581a
-      - PAYFAST_PASSPHRASE=passphrase
+      - JWT_SECRET=33524eb16862d4bb3d2aa0d0f2b2dd0e5f526aaeba8535f98b672f57b8f908ad
+      - PAYFAST_BASE_URL=https://www.payfast.co.za
+      - PAYFAST_MERCHANT_ID=10013782
+      - PAYFAST_MERCHANT_KEY=ht5w11srbl8p3
+      - PAYFAST_PASSPHRASE=Anyabanyablou83267
       - PLATFORM_COMMISSION_PERCENT=10
+      - SUPABASE_URL=https://cchbmxoxcbyzibgfxnou.supabase.co
+      - SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjaGJteG94Y2J5emliZ2Z4bm91Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NjEzNTQ0NiwiZXhwIjoyMDgxNzExNDQ2fQ.RaB8eBuRgQ4Djxs3n8E3M576Ls4rM_A0_967qVdMTAg
+      - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNjaGJteG94Y2J5emliZ2Z4bm91Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYxMzU0NDYsImV4cCI6MjA4MTcxMTQ0Nn0.IeRLRze0tvjCsSZ5RqKxIE8aVF-cerkmMB54caxsdW8
+      - NODE_ENV=production
       - ALLOW_HTTP_DEV=true
       - AI_PROVIDER=anthropic
       - AI_MODEL=claude-sonnet-4.5
@@ -25,18 +29,18 @@ services:
     depends_on:
       - db
       - redis
-      - ml
 
-  ml:
-    build:
-      context: .
-      dockerfile: ml/Dockerfile
-    working_dir: /app/ml
-    volumes:
-      - ./:/app
-    command: bash -lc "cd ml && pip install -r requirements.txt && uvicorn app:app --host 0.0.0.0 --port 8000"
-    ports:
-      - "8000:8000"
+  # Temporarily disabled ML service to allow frontend preview
+  # ml:
+  #   build:
+  #     context: .
+  #     dockerfile: ml/Dockerfile
+  #   working_dir: /app/ml
+  #   volumes:
+  #     - ./:/app
+  #   command: bash -lc "cd ml && pip install -r requirements.txt && uvicorn app:app --host 0.0.0.0 --port 8000"
+  #   ports:
+  #     - "8000:8000"
 
   db:
     image: postgres:15
@@ -47,3 +51,11 @@ services:
 
   redis:
     image: redis:7
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    restart: unless-stopped

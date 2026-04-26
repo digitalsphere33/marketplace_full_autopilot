@@ -33,6 +33,38 @@ CREATE TABLE IF NOT EXISTS sellers (
   payout_delay_days INT DEFAULT 7
 );
 
+-- Products (new) for richer catalog
+CREATE TABLE IF NOT EXISTS products (
+  id UUID PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  price NUMERIC NOT NULL,
+  currency TEXT DEFAULT 'ZAR',
+  stock INT DEFAULT 0,
+  sku TEXT,
+  category TEXT DEFAULT 'Electronics',
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS product_images (
+  id UUID PRIMARY KEY,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  position INT DEFAULT 0
+);
+
+-- Reviews and ratings
+CREATE TABLE IF NOT EXISTS reviews (
+  id UUID PRIMARY KEY,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+  buyer_id UUID REFERENCES users(id),
+  rating INT CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT now(),
+  UNIQUE(product_id, buyer_id) -- One review per buyer per product
+);
+
 CREATE TABLE IF NOT EXISTS listings (
   id UUID PRIMARY KEY,
   seller_id UUID REFERENCES sellers(id),
@@ -75,38 +107,6 @@ CREATE TABLE IF NOT EXISTS flagged_items (
   listing_title TEXT,
   reason TEXT,
   created_at TIMESTAMP DEFAULT now()
-);
-
--- Products (new) for richer catalog
-CREATE TABLE IF NOT EXISTS products (
-  id UUID PRIMARY KEY,
-  title TEXT NOT NULL,
-  description TEXT,
-  price NUMERIC NOT NULL,
-  currency TEXT DEFAULT 'ZAR',
-  stock INT DEFAULT 0,
-  sku TEXT,
-  category TEXT DEFAULT 'Electronics',
-  status TEXT DEFAULT 'active',
-  created_at TIMESTAMP DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS product_images (
-  id UUID PRIMARY KEY,
-  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
-  url TEXT NOT NULL,
-  position INT DEFAULT 0
-);
-
--- Reviews and ratings
-CREATE TABLE IF NOT EXISTS reviews (
-  id UUID PRIMARY KEY,
-  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
-  buyer_id UUID REFERENCES users(id),
-  rating INT CHECK (rating >= 1 AND rating <= 5),
-  comment TEXT,
-  created_at TIMESTAMP DEFAULT now(),
-  UNIQUE(product_id, buyer_id) -- One review per buyer per product
 );
 `;
   await pool.query(ddl);

@@ -59,8 +59,26 @@ app.get('/metrics', async () => {
   return `# HELP mzansimart_requests_total Total requests\n# TYPE mzansimart_requests_total counter\nmzansimart_requests_total ${metrics.requests}\n# HELP mzansimart_errors_total Total errors\n# TYPE mzansimart_errors_total counter\nmzansimart_errors_total ${metrics.errors}\n`;
 });
 
-await ensureSchema();
-await connectRedis();
+const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+async function startupWithRetries() {
+  const maxAttempts = Number(process.env.DB_CONN_RETRIES || 12);
+  const delayMs = Number(process.env.DB_CONN_DELAY_MS || 2000);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      app.log.info({ attempt, maxAttempts }, 'Attempting DB schema and Redis connect');
+      await ensureSchema();
+      await connectRedis();
+      app.log.info('DB and Redis connected');
+      return;
+    } catch (err) {
+      app.log.error({ err: String(err), attempt }, 'DB/Redis connect attempt failed');
+      if (attempt === maxAttempts) throw err;
+      await wait(delayMs);
+    }
+  }
+}
+
+await startupWithRetries();
 
 // Close DB and Redis gracefully
 async function shutdown() {

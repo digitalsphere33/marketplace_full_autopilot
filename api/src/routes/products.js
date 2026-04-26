@@ -3,7 +3,8 @@ import { pool } from '../db.js';
 export default async function productsRoutes(app) {
   // Admin-only protection except for reviews
   app.addHook('preValidation', async (req, reply) => {
-    const isAdminRoute = req.routerPath?.startsWith('/products') && !req.routerPath?.includes('/reviews');
+    // Allow public GETs; restrict non-GET product routes to admin users
+    const isAdminRoute = req.routerPath?.startsWith('/products') && req.method !== 'GET';
     if (isAdminRoute) {
       try { await app.verifyJwt(req, reply); } catch {}
       if (req.user?.role !== 'admin') return reply.code(403).send({ error: 'Forbidden' });

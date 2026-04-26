@@ -25,10 +25,25 @@ export default async function adminRoutes(app) {
 
   app.get('/orders', async () => (await pool.query('SELECT * FROM orders ORDER BY created_at DESC')).rows);
   app.get('/ledger', async () => (await pool.query('SELECT * FROM ledger ORDER BY created_at DESC')).rows);
-  app.post('/ledger/:id/mark-paid', async (req, reply) => {
+app.post('/ledger/:id/mark-paid', async (req, reply) => {
     try {
       const { id } = req.params;
       await pool.query('UPDATE ledger SET paid_to_seller = true WHERE id=$1', [id]);
+      // fetch ledger entry and send email to seller
+      try {
+        const { rows } = await pool.query('SELECT l.*, s.id as seller_id, u.email as seller_email FROM ledger l JOIN orders o ON o.id = l.order_id JOIN order_items oi ON oi.order_id = o.id JOIN listings lst ON lst.id = oi.listing_id JOIN sellers s ON s.id = lst.seller_id JOIN users u ON u.id = s.user_id WHERE l.id=$1 LIMIT 1', [id]);
+        if (rows.length) {
+          const entry = rows[0];
+          const amount = entry.seller_amount || 0;
+          const sellerEmail = entry.seller_email;
+          if (sellerEmail) {
+            const { sendPayoutNotification } = await import('../services/email.js');
+            await sendPayoutNotification(sellerEmail, amount);
+          }
+        }
+      } catch (err2) {
+        app.log.error({ err2 }, 'Failed to send payout email');
+      }
       return { ok: true };
     } catch (err) {
       app.log.error({ err }, 'Mark ledger paid error');

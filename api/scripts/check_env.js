@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'url';
+
 const required = [
   'JWT_SECRET',
   'PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGDATABASE',
@@ -27,5 +29,8 @@ function check() {
   console.log('- Redis / Postgres connection: use hosted provider or local services');
 }
 
-if (require.main === module) check();
+// Run if executed directly
+const isMain = process.argv[1] === fileURLToPath(import.meta.url);
+if (isMain) check();
+
 export default check;

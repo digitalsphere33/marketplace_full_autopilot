@@ -1,6 +1,7 @@
 import { verifyIpn } from '../payments/payfast.js';
 import { pool } from '../db.js';
 import { v4 as uuidv4 } from 'uuid';
+import { sendOrderConfirmation, sendSellerNotification } from '../services/email.js';
 
 export default async function webhookRoutes(app) {
   app.post('/payfast', async (req, reply) => {
@@ -22,6 +23,27 @@ export default async function webhookRoutes(app) {
       // Determine seller payout delay
       const { rows: ordRows } = await pool.query('SELECT * FROM orders WHERE id=$1', [orderId]);
       const order = ordRows[0];
+      // Send emails to buyer and seller if available
+      try {
+        if (order && order.customer_email) {
+          await sendOrderConfirmation(order, order.customer_email);
+        }
+        // try to find seller email via order items -> listings -> sellers -> users
+        const { rows: sellerRows } = await pool.query(`
+          SELECT u.email as seller_email FROM order_items oi
+          JOIN listings l ON l.id = oi.listing_id
+          JOIN sellers s ON s.id = l.seller_id
+          JOIN users u ON u.id = s.user_id
+          WHERE oi.order_id = $1 LIMIT 1
+        `, [orderId]);
+        if (sellerRows.length) {
+          const sellerEmail = sellerRows[0].seller_email;
+          if (sellerEmail) await sendSellerNotification(order, sellerEmail);
+        }
+      } catch (emailErr) {
+        app.log.error({ emailErr }, 'Failed to send order/seller emails');
+      }
+
       // Attempt to find seller via ledger or items table -- simplified: use custom_str1 in form
       const sellerId = form.custom_str1 || null;
       let payoutDelayDays = 7;

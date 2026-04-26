@@ -6,6 +6,7 @@ import Checkout from './Checkout.jsx';
 import Admin from './Admin.jsx';
 import Orders from './Orders.jsx';
 import Profile from './Profile.jsx';
+import ProductDetail from './ProductDetail.jsx';
 import { supabase } from '../supabaseClient.js';
 
 // Tabs are now computed dynamically based on user role - see getVisibleTabs() below
@@ -42,12 +43,13 @@ function PillButton({ children, active, onClick }) {
   );
 }
 
-function ProductCard({ item, onAddToCart }) {
+function ProductCard({ item, onAddToCart, onOpen }) {
   const [quantity, setQuantity] = useState(1);
   const [isHovered, setIsHovered] = useState(false);
   const imageUrl = item.image_url || item.imageUrl;
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
     onAddToCart({ ...item, quantity });
     setQuantity(1);
   };
@@ -60,6 +62,9 @@ function ProductCard({ item, onAddToCart }) {
       animate={{ opacity: 1, y: 0 }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={() => onOpen && onOpen(item.id)}
+      role="button"
+      tabIndex={0}
       className={`bg-white rounded-lg border border-gray-200 overflow-hidden flex flex-col transition-all duration-300 ${
         isHovered ? 'shadow-lg scale-[1.02]' : 'shadow-sm'
       }`}
@@ -120,26 +125,26 @@ function ProductCard({ item, onAddToCart }) {
       <div className="px-4 pb-4 flex gap-2">
         <div className="flex-1 flex items-center gap-1 bg-gray-100 rounded-md h-11">
           <button
-            onClick={() => setQuantity(Math.max(1, quantity - 1))}
+            onClick={(e) => { e.stopPropagation(); setQuantity(Math.max(1, quantity - 1)); }}
             className="px-3 h-full hover:bg-gray-200 rounded-l-md text-sm font-semibold transition-colors"
           >
             −
           </button>
           <span className="flex-1 text-center text-sm font-medium">{quantity}</span>
           <button
-            onClick={() => setQuantity(quantity + 1)}
+            onClick={(e) => { e.stopPropagation(); setQuantity(quantity + 1); }}
             className="px-3 h-full hover:bg-gray-200 rounded-r-md text-sm font-semibold transition-colors"
           >
             +
           </button>
         </div>
         <button
-          onClick={handleAddToCart}
+          onClick={(e) => handleAddToCart(e)}
           className="flex-1 bg-blue-600 text-white text-sm font-semibold h-11 rounded-md hover:bg-blue-700 active:scale-95 transition-all duration-200"
         >
           Add to Cart
         </button>
-        <button className="w-11 h-11 text-lg border border-gray-300 rounded-md hover:bg-gray-50 hover:border-red-300 hover:text-red-500 transition-all">
+        <button onClick={(e) => e.stopPropagation()} className="w-11 h-11 text-lg border border-gray-300 rounded-md hover:bg-gray-50 hover:border-red-300 hover:text-red-500 transition-all">
           ♡
         </button>
       </div>
@@ -206,8 +211,18 @@ export default function App() {
   const visibleTabs = getVisibleTabs();
 
   useEffect(() => {
+    // Sync tab with URL on load and browser navigation
+    function syncFromUrl() {
+      const p = (window.location.pathname || '').split('/').filter(Boolean);
+      if (p[0] === 'product' && p[1]) setTab('product');
+      else if (p[0] === 'cart') setTab('cart');
+    }
+    syncFromUrl();
+    window.addEventListener('popstate', syncFromUrl);
+
     // If no local JWT but Supabase session exists, exchange it for app JWT
     (async () => {
+
       try {
         if (!localStorage.getItem('jwt')) {
           const { data } = await supabase.auth.getSession();
@@ -237,6 +252,9 @@ export default function App() {
       .then(data => setListings(Array.isArray(data) ? data : []))
       .catch(() => setListings([]))
       .finally(() => setLoading(false));
+
+    return () => window.removeEventListener('popstate', syncFromUrl);
+
 
     // Load personalized recommendations
     const token = localStorage.getItem('jwt');
@@ -288,15 +306,16 @@ export default function App() {
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredListings.map((l) => (
-                <ProductCard
-                  key={l.id}
-                  item={l}
-                  onAddToCart={(item) => {
-                    setCart([...cart, { ...item, cartId: Date.now() }]);
-                  }}
-                />
-              ))}
+{filteredListings.map((l) => (
+                 <ProductCard
+                   key={l.id}
+                   item={l}
+                   onAddToCart={(item) => {
+                     setCart([...cart, { ...item, cartId: Date.now() }]);
+                   }}
+                   onOpen={(id) => { setTab('product'); window.history.pushState({}, '', `/product/${id}`); }}
+                 />
+               ))}
             </div>
           )}
         </div>
@@ -307,6 +326,7 @@ export default function App() {
     if (tab === 'orders') return <Orders />;
     if (tab === 'profile') return <Profile />;
     if (tab === 'admin') return <Admin />;
+    if (tab === 'product') return <ProductDetail />;
     return null;
   };
 
@@ -436,8 +456,9 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8 grid lg:grid-cols-4 gap-6">
-        <aside className="bg-white border border-gray-200 rounded-lg p-4 hidden lg:block h-fit">
-          <div className="font-semibold text-gray-900 mb-4 text-base">Shop by category</div>
+        {tab !== 'product' && (
+        <aside className="bg-white border border-neutral-200 rounded-lg p-4 hidden lg:block h-fit">
+          <div className="font-semibold text-neutral-800 mb-4 text-base">Shop by category</div>
           <div className="space-y-1 text-sm">
             {categories.map((c) => (
               <div
@@ -445,27 +466,31 @@ export default function App() {
                 onClick={() => { setSelectedCategory(c); setTab('listings'); }}
                 className={`flex items-center justify-between cursor-pointer px-3 py-2.5 rounded-md transition-all duration-200 ${
                   selectedCategory === c
-                    ? 'bg-blue-100 text-blue-700 font-semibold'
-                    : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'
+                    ? 'bg-brand-100 text-brand-700 font-semibold'
+                    : 'text-neutral-700 hover:text-brand-600 hover:bg-neutral-100'
                 }`}
               >
                 <span>{c}</span>
-                <span className={selectedCategory === c ? 'text-blue-400' : 'text-gray-300'}>›</span>
+                <span className={selectedCategory === c ? 'text-brand-400' : 'text-neutral-300'}>›</span>
               </div>
             ))}
           </div>
         </aside>
+        )}
 
         <section className="lg:col-span-3 space-y-8">
           {/* Hero banner */}
+{tab === 'listings' && (
           <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-8 flex flex-col gap-4 text-white shadow-lg">
             <div className="text-xs font-semibold uppercase tracking-wide">🚀 South Africa's Multi-Vendor Marketplace</div>
             <div className="text-4xl font-bold leading-tight">Alot for Less, Trusted Sellers</div>
             <div className="text-base opacity-90 max-w-2xl">Discover great deals from verified sellers. Secure checkout, fast delivery, and hassle-free returns.</div>
             <div className="flex gap-3 flex-wrap pt-2">
-              <button onClick={() => productsRef.current?.scrollIntoView({ behavior: 'smooth' })} className="bg-blue-700 text-white border border-white px-6 py-3 h-11 rounded-lg hover:bg-blue-800 font-semibold active:scale-95 transition-all duration-200">Shop Now</button>
+              <button onClick={() => productsRef.current?.scrollIntoView({ behavior: 'smooth' })} className="bg-blue-700 text-white border border-white px-6 py-3 rounded-lg hover:bg-blue-800 font-semibold active:scale-95 transition-all duration-200 flex items-center justify-center">Shop Now</button>
             </div>
           </div>
+          )}
+
 
           {/* Just for you - Personalized recommendations */}
           {recommendations.length > 0 && tab === 'listings' && (
@@ -482,15 +507,16 @@ export default function App() {
                 </div>
               ) : (
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {recommendations.map((rec) => (
-                    <ProductCard
-                      key={rec.id}
-                      item={rec}
-                      onAddToCart={(item) => {
-                        setCart([...cart, { ...item, cartId: Date.now() }]);
-                      }}
-                    />
-                  ))}
+{recommendations.map((rec) => (
+                     <ProductCard
+                       key={rec.id}
+                       item={rec}
+                       onAddToCart={(item) => {
+                         setCart([...cart, { ...item, cartId: Date.now() }]);
+                       }}
+                       onOpen={(id) => { setTab('product'); window.history.pushState({}, '', `/product/${id}`); }}
+                     />
+                   ))}
                 </div>
               )}
             </div>
